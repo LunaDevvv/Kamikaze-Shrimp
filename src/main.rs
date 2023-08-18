@@ -1,3 +1,5 @@
+
+
 // Kamikaze Shrimp
 // Rust game engine.
 
@@ -7,11 +9,13 @@ extern crate glfw;
 use self::glfw::{ Context, Key, Action };
 
 use std::sync::mpsc::Receiver;
+use std::ptr;
 
 extern crate gl;
 
 mod objects;
 mod shader_class;
+mod texture_functions;
 
 use shader_class::Shader;
 
@@ -38,24 +42,53 @@ fn main() {
     // Load all gl function pointers
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
-    let (vaos, current_shaders) = {
-        let current_shaders = Shader::new(
-            "src/shaders/colorful_triangle.vs",
-            "src/shaders/colorful_triangle.fs"
-        );
+    let (vaos, used_shaders, textures) = unsafe {
+        let mut used_shaders: Vec<Shader> = Vec::new();
+        let mut vaos: Vec<VAO_STRUCT> = Vec::new();
 
-        let mut vaos : Vec<u32> = Vec::new();
+        used_shaders.push(Shader::new(
+            "src/shaders/textured_vector_shader.vs",
+            "src/shaders/textured_fragment_shader.fs"
+        ));
 
-        vaos.push(objects::triangle::create_triangle([
-            0.5, -0.5, 0.0, 1.0, 0.0, 0.0,
-            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0,
-            0.0, 0.5, 0.0, 0.0, 0.0, 0.0
-        ].to_vec(), [
-            0, 1, 2,
-            1, 2, 3
-        ].to_vec()));
 
-        (vaos, current_shaders)
+        vaos.push(VAO_STRUCT {
+            vao_index: 0,
+            vao: objects::triangle::create_2d_texture_triangle([
+                // positions       // colors        // texture coords
+                 0.5,  0.5, 0.0,   1.0, 0.0, 0.0,   1.0, 1.0, // top right
+                 0.5, -0.5, 0.0,   0.0, 1.0, 0.0,   1.0, 0.0, // bottom right
+                -0.5, -0.5, 0.0,   0.0, 0.0, 1.0,   0.0, 0.0, // bottom left
+                -0.5,  0.5, 0.0,   1.0, 1.0, 0.0,   0.0, 1.0  // top left
+            ].to_vec(), [
+                0, 1, 3,
+                1, 2, 3
+            ].to_vec()),
+            load_style: "drawElements".to_string()
+        });
+
+        used_shaders.push(Shader::new(
+            "src/shaders/color_vector_shader.vs",
+            "src/shaders/color_fragment_shader.fs"
+        ));
+
+        vaos.push(VAO_STRUCT {
+            vao_index: 1,
+            vao: objects::triangle::create_2d_color_triangle([
+                0.25, -0.25,0.0,   1.0, 0.0, 0.0,  // bottom right
+               -0.25, -0.25, 0.0,  0.0, 1.0, 0.0,  // bottom left
+                0.0,  0.25, 0.0,  0.0, 0.0, 1.0   // top
+            ].to_vec(), [
+                0, 1, 3
+            ].to_vec()),
+            load_style: "drawArrays".to_string()
+        });
+
+        let mut textures : Vec<u32> = Vec::new();
+
+        textures.push(texture_functions::new_texture("src/textures/Maurice.jpg"));
+
+        (vaos, used_shaders, textures)
     };
 
     // Render loop
@@ -66,11 +99,27 @@ fn main() {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            current_shaders.use_program();
-
             for i in 0..vaos.len() {
-                gl::BindVertexArray(vaos[i]);
-                gl::DrawArrays(gl::TRIANGLES, 0, 3);
+                if let Some(_value) = textures.get(i) {
+                    gl::BindTexture(gl::TEXTURE_2D, textures[i]);
+                }
+
+                let vao = &vaos[i].vao;
+                let shader = &used_shaders[vaos[i].vao_index];
+
+                shader.use_program();
+
+                gl::BindVertexArray(*vao);
+
+                if vaos[i].load_style == "drawArrays".to_string() {
+                    gl::DrawArrays(gl::TRIANGLES, 0, 3);
+                }
+                else if vaos[i].load_style == "drawElements".to_string() {
+                    gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
+                }
+                else {
+                    panic!("Invalid load_style");
+                }
             }
         }
 
@@ -89,4 +138,11 @@ fn process_events(window: &mut glfw::Window, events: &Receiver<(f64, glfw::Windo
             _ => {}
         }
     }
+}
+
+#[allow(non_camel_case_types)]
+struct VAO_STRUCT {
+    pub vao_index: usize,
+    pub vao: u32,
+    pub load_style: String,
 }
