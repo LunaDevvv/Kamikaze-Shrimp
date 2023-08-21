@@ -5,6 +5,8 @@ use std::ptr;
 use std::mem;
 use std::os::raw::c_void;
 
+// Create a object with colors, using triangles
+// Quadrilaterals are mid.
 pub fn create_2d_color_triangle(vertices: Vec<f32>, indices: Vec<i32>) -> u32 {
     unsafe {
         let (mut vbo, mut vao, mut ebo) = (0, 0, 0);
@@ -27,10 +29,10 @@ pub fn create_2d_color_triangle(vertices: Vec<f32>, indices: Vec<i32>) -> u32 {
                       gl::STATIC_DRAW);
 
         let stride = 6 * mem::size_of::<GLfloat>() as GLsizei;
-        
+
         gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, ptr::null());
         gl::EnableVertexAttribArray(0);
-        
+
         gl::VertexAttribPointer(1, 3, gl::FLOAT, gl::FALSE, stride, (3 * mem::size_of::<GLfloat>()) as *const c_void);
         gl::EnableVertexAttribArray(1);
 
@@ -38,8 +40,9 @@ pub fn create_2d_color_triangle(vertices: Vec<f32>, indices: Vec<i32>) -> u32 {
     }
 }
 
+// Make an object with a texture, using triangles
+// Cause all my homies hate quadrilaterals.
 pub fn create_2d_texture_triangle(vertices: Vec<f32>, indices: Vec<i32>) -> u32 {
-
     unsafe {
         let (mut vbo, mut vao, mut ebo) = (0, 0, 0);
         gl::GenVertexArrays(1, &mut vao);
